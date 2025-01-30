@@ -1,17 +1,12 @@
-version: "3.8"
-
 volumes:
   postgres-data:
     driver: local
   kestra-data:
     driver: local
-  pgadmin-data:
-    driver: local
 
 services:
   postgres:
     image: postgres
-    restart: always
     volumes:
       - postgres-data:/var/lib/postgresql/data
     environment:
@@ -19,13 +14,17 @@ services:
       POSTGRES_USER: kestra
       POSTGRES_PASSWORD: k3str4
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -d $$POSTGRES_DB -U $$POSTGRES_USER"]
+      test: ["CMD-SHELL", "pg_isready -d $${POSTGRES_DB} -U $${POSTGRES_USER}"]
       interval: 30s
       timeout: 10s
       retries: 10
 
   kestra:
     image: kestra/kestra:latest
+    pull_policy: always
+    # Note that this setup with a root user is intended for development purpose.
+    # Our base image runs without root, but the Docker Compose implementation needs root to access the Docker socket
+    # To run Kestra in a rootless mode in production, see: https://kestra.io/docs/installation/podman-compose
     user: "root"
     command: server standalone
     volumes:
@@ -44,7 +43,7 @@ services:
           server:
             basicAuth:
               enabled: false
-              username: "admin@kestra.io"
+              username: "admin@kestra.io" # it must be a valid email address
               password: kestra
           repository:
             type: postgres
@@ -60,22 +59,7 @@ services:
           url: http://localhost:8080/
     ports:
       - "8080:8080"
-      - "9091:8081"  # Changed from 8081:8081 to avoid conflict
+      - "8081:8081"
     depends_on:
       postgres:
-        condition: service_healthy
-
-  pgadmin:
-    image: dpage/pgadmin4
-    container_name: pgadmin
-    restart: always
-    environment:
-      PGADMIN_DEFAULT_EMAIL: admin@example.com
-      PGADMIN_DEFAULT_PASSWORD: admin
-    ports:
-      - "9090:80"  # Changed from 8081:80 to avoid conflict
-    volumes:
-      - pgadmin-data:/var/lib/pgadmin
-    depends_on:
-      postgres:
-        condition: service_healthy
+        condition: service_started
